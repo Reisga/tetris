@@ -40,7 +40,11 @@
     color: var(--muted);
     margin-bottom: 6px;
   }
-  .value { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .value { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; display: inline-block; }
+  .value.bump { animation: bump .4s ease-out; }
+  @keyframes bump {
+    40% { transform: scale(1.35); color: var(--accent); }
+  }
   .board-wrap { position: relative; }
   canvas { display: block; border-radius: 10px; background: var(--panel); }
   #board { width: min(300px, 60vw); height: auto; }
@@ -387,6 +391,7 @@
     else if (!hard) sfx('lock');
 
     if (full.length) {
+      spawnClearFx(full);
       clearing = { rows: full, t: 0 };
       piece = null;
     } else {
@@ -408,7 +413,12 @@
     score += LINE_SCORES[n] * level;
     const prevLevel = level;
     level = Math.floor(lines / 10) + 1;
-    if (level > prevLevel) sfx('level');
+    if (level > prevLevel) {
+      sfx('level');
+      fx.texts.push({ text: `TASO ${level}`, sub: '', y: ROWS * CELL / 2 - 60, t: -300, color: '#6c8cff' });
+    }
+    bump('score'); bump('lines');
+    if (level > prevLevel) bump('level');
     canHold = true;
     spawn();
     updateHud();
@@ -486,6 +496,103 @@
       if (!v || piece.y + y < HIDDEN) return;
       drawCell(ctx, (piece.x + x) * CELL, (piece.y + y - HIDDEN) * CELL, CELL, COLORS[piece.type]);
     }));
+  }
+
+  // ---------- Line clear effects ----------
+
+  const CLEAR_NAMES = ['', 'YKSI RIVI', 'KAKSI RIVIÄ', 'KOLME RIVIÄ', 'TETRIS!'];
+  let fx = { parts: [], texts: [], shake: 0, mag: 0, flash: 0 };
+
+  function spawnClearFx(rows) {
+    const n = rows.length;
+    const per = n >= 4 ? 6 : 3;
+    for (const y of rows)
+      for (let x = 0; x < COLS; x++)
+        for (let k = 0; k < per; k++)
+          fx.parts.push({
+            x: (x + Math.random()) * CELL,
+            y: (y - HIDDEN + Math.random()) * CELL,
+            vx: (Math.random() - 0.5) * 0.5,
+            vy: -0.1 - Math.random() * 0.4,
+            t: 0, max: 500 + Math.random() * 500,
+            size: 3 + Math.random() * 4,
+            color: COLORS[grid[y][x]],
+          });
+    const cy = Math.min((rows.reduce((a, y) => a + y, 0) / n - HIDDEN + 0.5) * CELL, ROWS * CELL - 70);
+    fx.texts.push({
+      text: CLEAR_NAMES[n],
+      sub: '+' + (LINE_SCORES[n] * level).toLocaleString('fi-FI'),
+      y: cy, t: 0, color: n >= 4 ? '#f2c94c' : '#ffffff', big: n >= 4,
+    });
+    fx.shake = 150 + n * 70;
+    fx.mag = n * 2;
+    if (n >= 4) fx.flash = 1;
+  }
+
+  function updateFx(dt) {
+    for (const p of fx.parts) {
+      p.t += dt;
+      p.vy += 0.0012 * dt;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+    }
+    fx.parts = fx.parts.filter(p => p.t < p.max);
+    for (const tx of fx.texts) tx.t += dt;
+    fx.texts = fx.texts.filter(tx => tx.t < 1100);
+    fx.flash = Math.max(0, fx.flash - dt / 300);
+
+    if (fx.shake > 0) {
+      fx.shake -= dt;
+      const m = fx.mag * Math.min(1, fx.shake / 150);
+      boardCv.style.transform =
+        `translate(${(Math.random() - 0.5) * m * 2}px, ${(Math.random() - 0.5) * m * 2}px)`;
+    } else if (boardCv.style.transform) {
+      boardCv.style.transform = '';
+    }
+  }
+
+  function drawFx() {
+    if (fx.flash > 0) {
+      ctx.fillStyle = `rgba(255,255,255,${fx.flash * 0.35})`;
+      ctx.fillRect(0, 0, boardCv.width, boardCv.height);
+    }
+    for (const p of fx.parts) {
+      ctx.globalAlpha = 1 - p.t / p.max;
+      ctx.fillStyle = p.color;
+      ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+    }
+    ctx.globalAlpha = 1;
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (const tx of fx.texts) {
+      if (tx.t < 0) continue;
+      // Pop in with overshoot, drift up, fade out.
+      const s = tx.t < 120 ? 0.5 + (tx.t / 120) * 0.7 : Math.max(1, 1.2 - (tx.t - 120) / 650);
+      const a = Math.min(1, 1 - (tx.t - 700) / 400);
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, a);
+      ctx.translate(boardCv.width / 2, tx.y - tx.t * 0.04);
+      ctx.scale(s, s);
+      ctx.shadowColor = 'rgba(0,0,0,.7)';
+      ctx.shadowBlur = 8;
+      ctx.fillStyle = tx.color;
+      ctx.font = `800 ${tx.big ? 44 : 30}px system-ui, sans-serif`;
+      ctx.fillText(tx.text, 0, 0);
+      if (tx.sub) {
+        ctx.font = '700 24px system-ui, sans-serif';
+        ctx.fillStyle = '#e6e8ef';
+        ctx.fillText(tx.sub, 0, tx.big ? 40 : 32);
+      }
+      ctx.restore();
+    }
+  }
+
+  function bump(id) {
+    const el = $(id);
+    el.classList.remove('bump');
+    void el.offsetWidth; // restart the animation
+    el.classList.add('bump');
   }
 
   function drawMini(c, type, ox, oy, w, h, dim) {
@@ -670,6 +777,7 @@
     holdType = null; canHold = true;
     score = 0; lines = 0; level = 1;
     dropTimer = 0; clearing = null;
+    fx = { parts: [], texts: [], shake: 0, mag: 0, flash: 0 };
     state = 'playing';
     resetMusic();
     spawn();
@@ -817,7 +925,8 @@
       }
     }
 
-    if (grid) drawBoard();
+    updateFx(dt);
+    if (grid) { drawBoard(); drawFx(); }
     requestAnimationFrame(loop);
   }
 
