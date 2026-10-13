@@ -70,18 +70,42 @@
   .keys b { color: var(--text); font-weight: 500; }
   .touch { display: none; }
   @media (max-width: 600px), (pointer: coarse) {
-    body { align-items: flex-start; }
-    .game { flex-wrap: wrap; justify-content: center; }
-    .side { width: auto; flex-direction: row; flex-wrap: wrap; justify-content: center; }
-    .side.left { order: 2; }
-    .side.right { order: 3; }
-    .board-wrap { order: 1; }
+    /* Fit everything in one screen: sides | board | sides, controls below. */
+    body {
+      height: 100dvh;
+      overflow: hidden;
+      align-items: stretch;
+      padding: 8px 8px max(8px, env(safe-area-inset-bottom));
+    }
+    .game {
+      display: grid; width: 100%; max-width: 480px; margin: 0 auto;
+      grid-template-columns: 68px 1fr 68px;
+      grid-template-rows: minmax(0, 1fr) auto;
+      gap: 8px; align-items: stretch;
+    }
+    .side { width: auto; gap: 6px; min-width: 0; align-self: start; }
+    .side.left { grid-column: 1; grid-row: 1; }
+    .side.right { grid-column: 3; grid-row: 1; }
+    .box { padding: 6px; border-radius: 8px; }
+    .label { font-size: 9px; margin-bottom: 4px; }
+    .value { font-size: 15px; overflow-wrap: anywhere; }
+    #hold, #next { width: 100%; height: auto; }
+    .board-area {
+      grid-column: 2; grid-row: 1; min-height: 0;
+      container-type: size;
+      display: flex; justify-content: center; align-items: flex-start;
+    }
+    /* Largest 1:2 board that fits both the width and height of its cell. */
+    .board-wrap { width: min(100cqw, 50cqh); }
+    #board { width: 100%; }
+    .overlay h1 { font-size: 22px; }
+    .overlay p { font-size: 12px; }
     .keys { display: none; }
     .touch {
-      display: grid; order: 4; width: 100%;
-      grid-template-columns: repeat(5, 1fr); gap: 8px;
+      display: grid; grid-column: 1 / -1; grid-row: 2;
+      grid-template-columns: repeat(5, 1fr); gap: 6px;
     }
-    .touch button { padding: 14px 0; background: var(--panel); font-size: 18px; }
+    .touch button { padding: 12px 0; background: var(--panel); font-size: 18px; touch-action: none; }
   }
 </style>
 </head>
@@ -106,12 +130,14 @@
     </div>
   </div>
 
-  <div class="board-wrap">
-    <canvas id="board" width="300" height="600"></canvas>
-    <div class="overlay" id="overlay">
-      <h1 id="ov-title">TETRIS</h1>
-      <p id="ov-text">Paina Enter tai nappia aloittaaksesi</p>
-      <button id="ov-btn">Aloita</button>
+  <div class="board-area">
+    <div class="board-wrap">
+      <canvas id="board" width="300" height="600"></canvas>
+      <div class="overlay" id="overlay">
+        <h1 id="ov-title">TETRIS</h1>
+        <p id="ov-text">Paina Enter tai nappia aloittaaksesi</p>
+        <button id="ov-btn">Aloita</button>
+      </div>
     </div>
   </div>
 
